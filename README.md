@@ -5,8 +5,8 @@ A simple FastAPI microservice for managing subscriptions.
 ---
 
 ## Folder Structure
-
-Whatsub-subscription-microservice/
+```
+Whatsub-subscription-microservice\
 │── main.py # Entry point
 │── requirements.txt
 │── app/
@@ -16,7 +16,7 @@ Whatsub-subscription-microservice/
 │ │── routes.py # API routes
 │ │── fake_db.py # DB
 │ │── health.py # Health check
-
+```
 
 ---
 
