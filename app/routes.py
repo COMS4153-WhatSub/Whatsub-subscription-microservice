@@ -1,7 +1,8 @@
 from fastapi import APIRouter, HTTPException, Query, Path, Response
 from uuid import UUID
 from typing import List, Optional
-from app import crud, models, health
+
+from app import crud, models, health, notify
 
 router = APIRouter()
 
@@ -46,6 +47,21 @@ def delete_subscription(sub_id: UUID):
     if not success:
         raise HTTPException(status_code=404, detail="Subscription not found")
     return Response(status_code=204)
+
+# New: stats endpoint
+@router.get("/subscriptions/stats", response_model=models.SubscriptionStats)
+def get_stats():
+    stats = crud.get_subscription_stats()
+    return models.SubscriptionStats(**stats)
+
+# New: trigger sending stats to notification service
+@router.post("/subscriptions/notify_counts")
+def post_notify_counts():
+    try:
+        resp = notify.notify_counts()
+        return {"status": "sent", "http_status": resp.status_code}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # Root
 @router.get("/")

@@ -2,5 +2,5 @@ from uuid import UUID
 from typing import Dict
 from app.models import SubscriptionRead
 
-# Fake in-memory DB
+# in-memory store
 subscriptions: Dict[UUID, SubscriptionRead] = {}

@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Dict
 from uuid import UUID
 
 class SubscriptionCreate(BaseModel):
@@ -29,3 +29,10 @@ class Health(BaseModel):
     ip_address: str
     echo: Optional[str] = None
     path_echo: Optional[str] = None
+
+class SubscriptionStats(BaseModel):
+    total: int
+    total_active: int
+    by_plan: Dict[str, int]
+    by_status: Dict[str, int]
+    generated_at: datetime

@@ -1,5 +1,8 @@
 from datetime import datetime, timedelta
 from uuid import UUID, uuid4
+from collections import Counter
+from typing import Dict
+
 from app.models import SubscriptionCreate, SubscriptionUpdate, SubscriptionRead
 from app.fake_db import subscriptions
 
@@ -45,3 +48,27 @@ def delete_subscription(sub_id: UUID) -> bool:
         del subscriptions[sub_id]
         return True
     return False
+
+def get_subscription_stats() -> Dict:
+    """
+    Return stats dict:
+    {
+      "total": int,
+      "total_active": int,
+      "by_plan": {plan: count, ...},
+      "by_status": {status: count, ...},
+      "generated_at": datetime
+    }
+    """
+    subs = list(subscriptions.values())
+    total = len(subs)
+    total_active = sum(1 for s in subs if s.status == "active")
+    by_plan = dict(Counter(s.plan for s in subs))
+    by_status = dict(Counter(s.status for s in subs))
+    return {
+        "total": total,
+        "total_active": total_active,
+        "by_plan": by_plan,
+        "by_status": by_status,
+        "generated_at": datetime.utcnow()
+    }
