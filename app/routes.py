@@ -68,23 +68,23 @@ def delete_subscription(sub_id: UUID):
 
 
 # ------------------------
-# Stats endpoints
+# Stats endpoints  - delete for now
 # ------------------------
-@router.get("/subscriptions/stats", response_model=models.SubscriptionStats)
-def get_stats():
-    """Return aggregated subscription statistics"""
-    stats = crud.get_subscription_stats()
-    return models.SubscriptionStats(**stats)
+# @router.get("/subscriptions/stats", response_model=models.SubscriptionStats)
+# def get_stats():
+#     """Return aggregated subscription statistics"""
+#     stats = crud.get_subscription_stats()
+#     return models.SubscriptionStats(**stats)
 
 
-@router.post("/subscriptions/notify_counts")
-def post_notify_counts():
-    """Trigger sending subscription count summary to notification service"""
-    try:
-        resp = notify.notify_counts()
-        return {"status": "sent", "http_status": resp.status_code}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+# @router.post("/subscriptions/notify_counts")
+# def post_notify_counts():
+#     """Trigger sending subscription count summary to notification service"""
+#     try:
+#         resp = notify.notify_counts()
+#         return {"status": "sent", "http_status": resp.status_code}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
 
 
 # ------------------------

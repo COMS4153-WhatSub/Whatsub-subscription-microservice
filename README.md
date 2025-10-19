@@ -27,11 +27,11 @@ A simple FastAPI microservice for managing subscriptions.
 - Accessible via `/health` and `/health/{path_echo}` endpoints.
 - Designed for integration with monitoring tools or uptime checks.
 
-### Statistics & Reporting
+<!-- ### Statistics & Reporting
 
 - Aggregates subscription data: total subscriptions, total active, count by plan, and count by billing type.
 - Endpoint: `GET /subscriptions/stats`
-- Supports sending stats to external notification services via `POST /subscriptions/notify_counts`.
+- Supports sending stats to external notification services via `POST /subscriptions/notify_counts`. -->
 
 ### Validation & Typing
 
