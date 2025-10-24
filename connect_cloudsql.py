@@ -54,7 +54,8 @@ from sqlalchemy import create_engine, text
 import os
 
 # --- Configuration ---
-DB_HOST = "10.63.160.3"
+# DB_HOST = "10.63.160.3"
+DB_HOST = "mysql-vm.us-central1.c.testproject-473522.internal"
 DB_NAME = "whatsub"
 DB_USER = "whatsub"
 DB_PASS = "WhatSub123!"
