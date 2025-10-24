@@ -21,13 +21,19 @@ def create_db_engine():
     # MySQL connection string using PyMySQL driver
     connection_url = (
         f"mysql+pymysql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-        f"?ssl_ca={SSL_CA}&ssl_cert={SSL_CERT}&ssl_key={SSL_KEY}"
     )
 
     engine = create_engine(
         connection_url,
         echo=False,  # set True for SQL debug output
         pool_pre_ping=True,  # ensures connection validity
+        connect_args={
+            "ssl": {
+                "ca": SSL_CA,
+                "cert": SSL_CERT,
+                "key": SSL_KEY,
+            }
+        }
     )
     return engine
 
