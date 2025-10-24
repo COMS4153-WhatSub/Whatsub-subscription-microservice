@@ -12,7 +12,7 @@ DB_PASS = "WhatSub123!"
 DB_PORT = 3306  # 3306 for MySQL
 
 # --- Connect & Query ---
-def fetch_users()
+def fetch_users():
     assert os.path.exists("../client-key.pem"), "Client key file not found."
     assert os.path.exists("../client-cert.pem"), "Client cert file not found."
     assert os.path.exists("../server-ca.pem"), "Server CA file not found."
