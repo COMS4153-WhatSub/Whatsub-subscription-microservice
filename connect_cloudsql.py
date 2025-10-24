@@ -32,6 +32,7 @@ def create_db_engine():
                 "ca": SSL_CA,
                 "cert": SSL_CERT,
                 "key": SSL_KEY,
+                "check_hostname": False,
             }
         }
     )
