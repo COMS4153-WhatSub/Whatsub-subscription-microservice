@@ -16,7 +16,7 @@ SSL_KEY = "../client-key.pem"
 def create_db_engine():
     # Ensure SSL files exist
     for f in [SSL_CA, SSL_CERT, SSL_KEY]:
-        assert os.path.exists(f), f"❌ Missing SSL file: {f}"
+        assert os.path.exists(f), f"Missing SSL file: {f}"
 
     # MySQL connection string using PyMySQL driver
     connection_url = (
@@ -32,7 +32,7 @@ def create_db_engine():
                 "ca": SSL_CA,
                 "cert": SSL_CERT,
                 "key": SSL_KEY,
-                "check_hostname": False,
+                "check_hostname": False, # This helps to connect to the DB somehow
             }
         }
     )
@@ -44,15 +44,15 @@ def fetch_users():
         engine = create_db_engine()
 
         with engine.connect() as conn:
-            result = conn.execute(text("SELECT * FROM users LIMIT 10;"))
+            result = conn.execute(text("SELECT * FROM users LIMIT 20;"))
             users = result.mappings().all()
 
-            print("✅ Connection successful. Sample users:")
+            print("Connection successful. Sample users:")
             for u in users:
                 print(dict(u))
 
     except Exception as e:
-        print("❌ Database connection failed:", e)
+        print("Database connection failed:", e)
 
 if __name__ == "__main__":
     fetch_users()
