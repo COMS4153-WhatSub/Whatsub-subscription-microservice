@@ -19,7 +19,12 @@ def fetch_users():
             password=DB_PASS,
             database=DB_NAME,
             port=DB_PORT,
-            cursorclass=pymysql.cursors.DictCursor
+            cursorclass=pymysql.cursors.DictCursor,
+            ssl={
+                "ca": "../server-ca.pem",
+                "cert": "../client-cert.pem",
+                "key": "../client-key.pem",
+                }
         )
 
         with conn.cursor() as cursor:
