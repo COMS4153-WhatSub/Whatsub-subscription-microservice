@@ -4,6 +4,71 @@ A simple FastAPI microservice for managing subscriptions.
 
 ---
 
+## Local Development Setup
+
+### Prerequisites
+
+- Python 3.9+
+- MySQL 5.7+ or MySQL 8.0+
+- pip
+
+### Database Setup
+
+1. **Create the local database manually:**
+   ```bash
+   mysql -u root -p
+   ```
+   Then run:
+   ```sql
+   CREATE DATABASE IF NOT EXISTS whatsub_subscriptions_local
+       CHARACTER SET utf8mb4
+       COLLATE utf8mb4_unicode_ci;
+   
+   USE whatsub_subscriptions_local;
+   
+   CREATE TABLE IF NOT EXISTS subscriptions (
+       subscription_id INT AUTO_INCREMENT PRIMARY KEY,
+       user_id CHAR(36) NOT NULL,
+       name VARCHAR(255) NOT NULL,
+       url VARCHAR(500),
+       account VARCHAR(255),
+       billing_type ENUM('monthly', 'quarterly', 'annually') NOT NULL,
+       billing_date DATE,
+       price DECIMAL(10, 2),
+       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+       INDEX idx_user_id (user_id),
+       INDEX idx_billing_date (billing_date),
+       INDEX idx_billing_type (billing_type)
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+   ```
+
+2. **Create a `.env` file** in the project root with your MySQL credentials:
+   ```env
+   DB_HOST=localhost
+   DB_PORT=3306
+   DB_USER=root
+   DB_PASS=your_mysql_password
+   DB_NAME=whatsub_subscriptions_local
+   ```
+
+3. **Install dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Run the application:**
+   ```bash
+   python -m app.main
+   ```
+   Or:
+   ```bash
+   uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
+   ```
+
+The application will automatically create tables if they don't exist (via SQLAlchemy's `create_all`).
+
+---
+
 ## Key Features
 
 ### CRUD Operations

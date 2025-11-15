@@ -1,0 +1,148 @@
+from typing import List, Optional, Dict, Any
+from pydantic import BaseModel, Field
+from datetime import datetime
+from enum import Enum
+from uuid import UUID
+
+from app.models.subscription import SubscriptionCreate, SubscriptionRead
+
+
+class BatchStatus(str, Enum):
+    """Batch job status enumeration"""
+    pending = "pending"
+    processing = "processing"
+    completed = "completed"
+    failed = "failed"
+
+
+class BatchSubscriptionItem(BaseModel):
+    """Result item for a single subscription in batch creation"""
+    index: int = Field(description="Index position in the request")
+    subscription: Optional[SubscriptionRead] = Field(None, description="Successfully created subscription")
+    error: Optional[str] = Field(None, description="Error message (if failed)")
+    success: bool = Field(description="Whether the creation was successful")
+
+
+class BatchCreateRequest(BaseModel):
+    """Batch subscription creation request"""
+    subscriptions: List[SubscriptionCreate] = Field(
+        description="List of subscriptions to create",
+        min_length=1,
+        max_length=100,  # Limit batch size
+    )
+    idempotency_key: Optional[str] = Field(None, description="Idempotency key to prevent duplicate submissions")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "subscriptions": [
+                        {
+                            "user_id": "7e98a8f7-0e22-4f4a-9f3e-5a2d7c6f9e11",
+                            "plan": "Netflix Premium",
+                            "billing_type": "monthly",
+                            "url": "https://www.netflix.com",
+                            "account": "user@example.com",
+                            "billing_date": "2024-01-15",
+                            "price": "15.99"
+                        },
+                        {
+                            "user_id": "8f09b9g8-1f33-5g5b-0h4f-6b3e8d7g0f22",
+                            "plan": "Spotify Premium",
+                            "billing_type": "monthly",
+                            "url": "https://www.spotify.com",
+                            "account": "user@example.com",
+                            "price": "9.99"
+                        },
+                        {
+                            "user_id": "9g10c0h9-2g44-6h6c-1i5g-7c4f9e8h1g33",
+                            "plan": "Amazon Prime",
+                            "billing_type": "annually",
+                            "url": "https://www.amazon.com/prime",
+                            "account": "user@example.com",
+                            "price": "139.00"
+                        }
+                    ],
+                    "idempotency_key": "batch-2024-01-15"
+                }
+            ]
+        }
+    }
+
+
+class BatchJobResponse(BaseModel):
+    """202 Accepted response - batch job created"""
+    batch_id: UUID = Field(description="Batch job ID")
+    status: BatchStatus = Field(description="Current status")
+    status_url: str = Field(description="Status query URL")
+    total_count: int = Field(description="Total number of subscriptions")
+    message: str = Field(description="Message")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "batch_id": "550e8400-e29b-41d4-a716-446655440000",
+                    "status": "pending",
+                    "status_url": "/subscriptions/batch/550e8400-e29b-41d4-a716-446655440000/status",
+                    "total_count": 10,
+                    "message": "Batch subscription creation job created and queued for processing"
+                }
+            ]
+        }
+    }
+
+
+class BatchStatusResponse(BaseModel):
+    """Batch job status query response"""
+    batch_id: UUID = Field(description="Batch job ID")
+    status: BatchStatus = Field(description="Current status")
+    created_at: datetime = Field(description="Creation timestamp")
+    updated_at: datetime = Field(description="Last update timestamp")
+    completed_at: Optional[datetime] = Field(None, description="Completion timestamp")
+    total_count: int = Field(description="Total number of subscriptions")
+    processed_count: int = Field(description="Number of processed subscriptions")
+    success_count: int = Field(description="Number of successful subscriptions")
+    failed_count: int = Field(description="Number of failed subscriptions")
+    progress: float = Field(ge=0, le=100, description="Processing progress percentage")
+    results: Optional[List[BatchSubscriptionItem]] = Field(None, description="Processing results (when completed)")
+    error: Optional[str] = Field(None, description="Overall error message (if job failed)")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "batch_id": "550e8400-e29b-41d4-a716-446655440000",
+                    "status": "completed",
+                    "created_at": "2024-01-15T10:00:00Z",
+                    "updated_at": "2024-01-15T10:00:05Z",
+                    "completed_at": "2024-01-15T10:00:05Z",
+                    "total_count": 10,
+                    "processed_count": 10,
+                    "success_count": 8,
+                    "failed_count": 2,
+                    "progress": 100.0,
+                    "results": [
+                        {
+                            "index": 0,
+                            "success": True,
+                            "subscription": {
+                                "id": 1,
+                                "user_id": "user_01",
+                                "plan": "Basic",
+                                "billing_date": "2024-01-15",
+                                "price": "10.00",
+                                "created_at": "2024-01-15T10:00:00Z"
+                            }
+                        },
+                        {
+                            "index": 1,
+                            "success": False,
+                            "error": "Invalid user_id"
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+
