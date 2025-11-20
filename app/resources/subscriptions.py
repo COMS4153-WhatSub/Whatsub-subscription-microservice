@@ -1,8 +1,10 @@
-from typing import Optional
-from datetime import date
+from typing import Optional, List
+from datetime import date, timedelta
 from decimal import Decimal
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Path, status
+import hashlib
+import json
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Path, status, Response, Header
 
 from app.models.subscription import SubscriptionCreate, SubscriptionUpdate, SubscriptionRead
 from app.models.common import ErrorResponse, PaginatedResponse
@@ -63,6 +65,29 @@ async def list_subscriptions(
         page=page,
         limit=limit,
     )
+
+
+@router.get(
+    "/due",
+    response_model=List[SubscriptionRead],
+    summary="Get due subscriptions",
+    description="Get subscriptions that are due for billing within a specified number of days.",
+)
+async def get_due_subscriptions(
+    days_ahead: int = Query(3, ge=0, description="Number of days ahead to check for due billing"),
+    service: SubscriptionServiceProtocol = Depends(get_subscription_service),
+):
+    """
+    Get list of subscriptions due for billing.
+    This is primarily used by internal jobs/composite service.
+    """
+    # We need to access the concrete implementation for this specific method
+    # or update the protocol. For now, we assume the service has the method.
+    if not hasattr(service, "find_due_subscriptions"):
+        raise HTTPException(status_code=501, detail="Service does not support finding due subscriptions")
+    
+    target_date = date.today() + timedelta(days=days_ahead)
+    return service.find_due_subscriptions(target_date)
 
 
 @router.post(
@@ -144,12 +169,26 @@ async def create_subscription(
 )
 async def get_subscription(
     subscription_id: int,
+    response: Response,
+    if_none_match: Optional[str] = Header(None),
     service: SubscriptionServiceProtocol = Depends(get_subscription_service),
 ):
     subscription = service.get_subscription(subscription_id)
     if not subscription:
         raise HTTPException(status_code=404, detail="Subscription not found")
-    response = {
+    
+    # Generate ETag based on subscription content
+    etag_content = f"{subscription.id}-{subscription.plan}-{subscription.price}-{subscription.billing_date}-{subscription.created_at}"
+    etag = hashlib.md5(etag_content.encode()).hexdigest()
+    
+    # Check If-None-Match header
+    if if_none_match == etag:
+        return Response(status_code=status.HTTP_304_NOT_MODIFIED)
+    
+    # Set ETag header
+    response.headers["ETag"] = etag
+    
+    response_data = {
         "id": subscription.id,
         "user_id": subscription.user_id,
         "plan": subscription.plan,
@@ -180,7 +219,7 @@ async def get_subscription(
             }
         }
     }
-    return response
+    return response_data
 
 
 @router.patch(
@@ -238,6 +277,33 @@ async def update_subscription(
         }
     }
     return response
+
+
+@router.post(
+    "/{subscription_id}/advance-date",
+    response_model=SubscriptionRead,
+    summary="Advance subscription billing date",
+    description="Move the billing date to the next cycle (monthly/quarterly/annually).",
+    responses={
+        404: {"description": "Subscription not found"},
+        501: {"description": "Feature not implemented in service"}
+    }
+)
+async def advance_subscription_date(
+    subscription_id: int,
+    service: SubscriptionServiceProtocol = Depends(get_subscription_service),
+):
+    """
+    Advance billing date logic.
+    This is used after a notification is sent or payment is processed.
+    """
+    if not hasattr(service, "advance_billing_date"):
+        raise HTTPException(status_code=501, detail="Service does not support advancing billing date")
+    
+    subscription = service.advance_billing_date(subscription_id)
+    if not subscription:
+        raise HTTPException(status_code=404, detail="Subscription not found")
+    return subscription
 
 
 @router.delete(
@@ -442,4 +508,3 @@ async def get_batch_status(
     
     # Step 4: Return status information
     return status_response
-

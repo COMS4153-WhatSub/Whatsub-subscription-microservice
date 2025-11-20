@@ -277,6 +277,54 @@ class SqlAlchemySubscriptionService:
                 self.logger.error("database_error", error=str(e))
                 raise RuntimeError(f"Database error: {str(e)}") from e
 
+    def find_due_subscriptions(self, target_date: date) -> List[SubscriptionRead]:
+        """Find subscriptions due on a specific date."""
+        with self.session_factory() as session:
+            try:
+                # Find subscriptions where billing_date equals the target date
+                query = session.query(SubscriptionORM).filter(
+                    SubscriptionORM.billing_date == target_date
+                )
+                rows = query.all()
+                return [self._orm_to_read(row) for row in rows]
+            except DatabaseError as e:
+                self.logger.error("database_error", error=str(e))
+                raise RuntimeError(f"Database error: {str(e)}") from e
+
+    def advance_billing_date(self, subscription_id: int) -> Optional[SubscriptionRead]:
+        """Advance the billing date to the next cycle."""
+        with self.session_factory() as session:
+            try:
+                row = session.get(SubscriptionORM, subscription_id)
+                if not row:
+                    return None
+                
+                # Calculate next date based on current billing date
+                from app.models.subscription import BillingType
+                next_date = self._calculate_billing_date(
+                    BillingType(row.billing_type), 
+                    current_date=row.billing_date
+                )
+                
+                old_date = row.billing_date
+                row.billing_date = next_date
+                
+                session.add(row)
+                session.commit()
+                session.refresh(row)
+                
+                self.logger.info(
+                    "subscription_renewed", 
+                    subscription_id=subscription_id, 
+                    old_date=str(old_date), 
+                    new_date=str(next_date)
+                )
+                return self._orm_to_read(row)
+            except DatabaseError as e:
+                session.rollback()
+                self.logger.error("database_error", error=str(e))
+                raise RuntimeError(f"Database error: {str(e)}") from e
+
     def _orm_to_read(self, row: SubscriptionORM) -> SubscriptionRead:
         """Convert ORM model to Pydantic read model."""
         from app.models.subscription import BillingType
@@ -292,36 +340,36 @@ class SqlAlchemySubscriptionService:
             created_at=row.created_at,
         )
 
-    def _calculate_billing_date(self, billing_type: BillingType) -> date:
+    def _calculate_billing_date(self, billing_type: BillingType, current_date: Optional[date] = None) -> date:
         """
         Calculate the next billing date based on billing type.
-        
-        For notification purposes, this should be the NEXT billing date,
-        not the current billing cycle start date.
+        Preserves the day of the month if current_date is provided.
         """
         today = date.today()
+        base_date = current_date if current_date else today
+        
+        def add_months(source: date, months: int) -> date:
+            month = source.month - 1 + months
+            year = source.year + month // 12
+            month = month % 12 + 1
+            # Get days in target month
+            days_in_month = [31, 29 if year % 4 == 0 and (year % 100 != 0 or year % 400 == 0) else 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+            day = min(source.day, days_in_month[month - 1])
+            return date(year, month, day)
         
         if billing_type == BillingType.monthly:
-            # Next month's first day
-            if today.month == 12:
-                # December -> January of next year
-                return date(today.year + 1, 1, 1)
-            else:
-                # Next month
-                return date(today.year, today.month + 1, 1)
+            return add_months(base_date, 1)
         elif billing_type == BillingType.quarterly:
-            # Next quarter's first day
-            current_quarter = ((today.month - 1) // 3) + 1  # 1-4
-            if current_quarter == 4:
-                # Q4 -> Q1 of next year
-                return date(today.year + 1, 1, 1)
-            else:
-                # Next quarter: Q1->Apr(4), Q2->Jul(7), Q3->Oct(10)
-                next_quarter_month = current_quarter * 3 + 1
-                return date(today.year, next_quarter_month, 1)
-        else:  # annually
-            # January 1st of next year
-            return date(today.year + 1, 1, 1)
+            return add_months(base_date, 3)
+        elif billing_type == BillingType.annually:
+            try:
+                return base_date.replace(year=base_date.year + 1)
+            except ValueError:
+                # Feb 29 -> Feb 28
+                return date(base_date.year + 1, 2, 28)
+        else:
+            # Default fallback
+            return add_months(base_date, 1)
 
     def _default_price(self, plan: str) -> Decimal:
         """Set simple default price logic per plan."""
