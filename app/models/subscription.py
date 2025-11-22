@@ -11,6 +11,18 @@ class BillingType(str, Enum):
     quarterly = "quarterly"
 
 
+class Category(str, Enum):
+    streaming = "streaming"
+    music = "music"
+    software = "software"
+    gaming = "gaming"
+    cloud = "cloud"
+    news = "news"
+    fitness = "fitness"
+    education = "education"
+    other = "other"
+
+
 class SubscriptionBase(BaseModel):
     user_id: str = Field(description="User ID (CHAR(36))")
     plan: str = Field(description="Subscription service name or plan name (e.g., 'Netflix Premium', 'Spotify Premium', 'Amazon Prime')", max_length=255)
@@ -18,6 +30,7 @@ class SubscriptionBase(BaseModel):
     account: Optional[str] = Field(default=None, description="Account identifier", max_length=255)
     billing_date: Optional[date] = Field(default=None, description="Billing date")
     price: Optional[Decimal] = Field(default=None, description="Subscription price", max_digits=10, decimal_places=2)
+    category: Optional[Category] = Field(default=Category.other, description="Subscription category")
 
     model_config = {
         "json_schema_extra": {
@@ -61,6 +74,7 @@ class SubscriptionUpdate(BaseModel):
     billing_type: Optional[BillingType] = Field(default=None, description="Billing frequency type")
     billing_date: Optional[date] = Field(default=None, description="Billing date")
     price: Optional[Decimal] = Field(default=None, description="Subscription price", max_digits=10, decimal_places=2)
+    category: Optional[Category] = Field(default=None, description="Subscription category")
     
     model_config = {
         "json_schema_extra": {
@@ -77,6 +91,7 @@ class SubscriptionUpdate(BaseModel):
 class SubscriptionRead(SubscriptionBase):
     id: int = Field(description="Subscription ID (auto-increment)")
     billing_type: BillingType = Field(description="Billing frequency type")
+    category: Optional[Category] = Field(default=Category.other, description="Subscription category")
     created_at: datetime = Field(description="Creation timestamp")
 
     model_config = {

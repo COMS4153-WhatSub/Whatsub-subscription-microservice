@@ -212,6 +212,7 @@ class SqlAlchemySubscriptionService:
                     billing_type=payload.billing_type.value,  # Store billing_type
                     billing_date=billing_date,
                     price=price,
+                    category=payload.category.value if payload.category else "other",
                 )
                 session.add(new_row)
                 session.commit()
@@ -251,6 +252,8 @@ class SqlAlchemySubscriptionService:
                     row.billing_date = payload.billing_date
                 if payload.price is not None:
                     row.price = payload.price
+                if payload.category is not None:
+                    row.category = payload.category.value
                 
                 session.add(row)
                 session.commit()
@@ -327,7 +330,7 @@ class SqlAlchemySubscriptionService:
 
     def _orm_to_read(self, row: SubscriptionORM) -> SubscriptionRead:
         """Convert ORM model to Pydantic read model."""
-        from app.models.subscription import BillingType
+        from app.models.subscription import BillingType, Category
         return SubscriptionRead(
             id=row.subscription_id,
             user_id=row.user_id,
@@ -337,6 +340,7 @@ class SqlAlchemySubscriptionService:
             billing_type=BillingType(row.billing_type),  # Convert string to enum
             billing_date=row.billing_date,
             price=row.price,
+            category=Category(row.category) if row.category else Category.other,
             created_at=row.created_at,
         )
 

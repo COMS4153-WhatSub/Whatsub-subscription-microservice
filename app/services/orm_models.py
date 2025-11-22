@@ -11,6 +11,18 @@ class BillingTypeEnum(str, enum.Enum):
     annually = "annually"
 
 
+class CategoryEnum(str, enum.Enum):
+    streaming = "streaming"
+    music = "music"
+    software = "software"
+    gaming = "gaming"
+    cloud = "cloud"
+    news = "news"
+    fitness = "fitness"
+    education = "education"
+    other = "other"
+
+
 class Base(DeclarativeBase):
     pass
 
@@ -29,11 +41,17 @@ class SubscriptionORM(Base):
     )
     billing_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     price: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
+    category: Mapped[str | None] = mapped_column(
+        SQLEnum(CategoryEnum, native_enum=False, length=20),
+        nullable=True,
+        default="other"
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
     __table_args__ = (
         Index('idx_user_id', 'user_id'),
         Index('idx_billing_date', 'billing_date'),
         Index('idx_billing_type', 'billing_type'),
+        Index('idx_category', 'category'),
     )
 
