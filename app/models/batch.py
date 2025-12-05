@@ -1,10 +1,9 @@
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 from pydantic import BaseModel, Field
 from datetime import datetime
 from enum import Enum
 from uuid import UUID
 
-from app.models.subscription import SubscriptionCreate, SubscriptionRead
 
 
 class BatchStatus(str, Enum):
@@ -15,22 +14,33 @@ class BatchStatus(str, Enum):
     failed = "failed"
 
 
-class BatchSubscriptionItem(BaseModel):
-    """Result item for a single subscription in batch creation"""
+class BatchDeleteItem(BaseModel):
+    """Result item for a single subscription in batch deletion"""
     index: int = Field(description="Index position in the request")
-    subscription: Optional[SubscriptionRead] = Field(None, description="Successfully created subscription")
+    subscription_id: int = Field(description="Subscription ID that was attempted to delete")
+    success: bool = Field(description="Whether the deletion was successful")
     error: Optional[str] = Field(None, description="Error message (if failed)")
-    success: bool = Field(description="Whether the creation was successful")
 
 
-class BatchCreateRequest(BaseModel):
-    """Batch subscription creation request"""
-    subscriptions: List[SubscriptionCreate] = Field(
-        description="List of subscriptions to create",
+class BatchDeleteRequest(BaseModel):
+    """Batch subscription deletion request"""
+    subscription_ids: List[int] = Field(
+        description="List of subscription IDs to delete",
         min_length=1,
         max_length=100,  # Limit batch size
     )
     idempotency_key: Optional[str] = Field(None, description="Idempotency key to prevent duplicate submissions")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "subscription_ids": [1, 2, 3, 4, 5],
+                    "idempotency_key": "batch-delete-2024-01-15"
+                }
+            ]
+        }
+    }
 
     model_config = {
         "json_schema_extra": {
@@ -86,7 +96,7 @@ class BatchJobResponse(BaseModel):
                     "status": "pending",
                     "status_url": "/subscriptions/batch/550e8400-e29b-41d4-a716-446655440000/status",
                     "total_count": 10,
-                    "message": "Batch subscription creation job created and queued for processing"
+                    "message": "Batch subscription deletion job created and queued for processing"
                 }
             ]
         }
@@ -105,7 +115,7 @@ class BatchStatusResponse(BaseModel):
     success_count: int = Field(description="Number of successful subscriptions")
     failed_count: int = Field(description="Number of failed subscriptions")
     progress: float = Field(ge=0, le=100, description="Processing progress percentage")
-    results: Optional[List[BatchSubscriptionItem]] = Field(None, description="Processing results (when completed)")
+    results: Optional[List[BatchDeleteItem]] = Field(None, description="Processing results (when completed)")
     error: Optional[str] = Field(None, description="Overall error message (if job failed)")
 
     model_config = {

@@ -18,10 +18,17 @@ def get_engine():
     database_url = f"mysql+pymysql://{settings.db_user}:{settings.db_pass}@{settings.db_host}:{settings.db_port}/{settings.db_name}"
     
     # SQLAlchemy 2.0 engine with connection pooling
+    # Add connection timeout settings for Cloud Run
     engine = create_engine(
         database_url,
         pool_pre_ping=True,
         pool_recycle=3600,  # Recycle connections every hour
+        pool_timeout=20,  # Timeout for getting connection from pool
+        connect_args={
+            "connect_timeout": 10,  # Connection timeout in seconds
+            "read_timeout": 10,  # Read timeout in seconds
+            "write_timeout": 10,  # Write timeout in seconds
+        },
     )
     return engine
 

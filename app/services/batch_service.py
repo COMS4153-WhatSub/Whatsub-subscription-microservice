@@ -1,5 +1,5 @@
 """
-Batch subscription creation service - implements 202 Accepted asynchronous processing and status polling
+Batch subscription deletion service - implements 202 Accepted asynchronous processing and status polling
 """
 import uuid
 import time
@@ -10,12 +10,10 @@ from uuid import UUID
 
 from app.models.batch import (
     BatchStatus,
-    BatchCreateRequest,
-    BatchJobResponse,
+    BatchDeleteRequest,
     BatchStatusResponse,
-    BatchSubscriptionItem,
+    BatchDeleteItem,
 )
-from app.models.subscription import SubscriptionCreate, SubscriptionRead
 from app.services.subscription_service import SqlAlchemySubscriptionService
 
 
@@ -24,7 +22,7 @@ class BatchJob:
     def __init__(
         self,
         batch_id: UUID,
-        request: BatchCreateRequest,
+        request: BatchDeleteRequest,
         subscription_service: SqlAlchemySubscriptionService,
         status: BatchStatus = BatchStatus.pending,
     ):
@@ -35,16 +33,16 @@ class BatchJob:
         self.created_at = datetime.utcnow()
         self.updated_at = datetime.utcnow()
         self.completed_at: Optional[datetime] = None
-        self.total_count = len(request.subscriptions)
+        self.total_count = len(request.subscription_ids)
         self.processed_count = 0
         self.success_count = 0
         self.failed_count = 0
-        self.results: List[BatchSubscriptionItem] = []
+        self.results: List[BatchDeleteItem] = []
         self.error: Optional[str] = None
 
 
 class BatchSubscriptionService:
-    """Batch subscription creation service - manages batch job lifecycle"""
+    """Batch subscription deletion service - manages batch job lifecycle"""
     
     def __init__(self):
         # In-memory storage: production should use database
@@ -54,13 +52,13 @@ class BatchSubscriptionService:
         # Background task threads
         self._processing_threads: Dict[UUID, threading.Thread] = {}
     
-    def create_batch_job(
+    def create_batch_delete_job(
         self,
-        request: BatchCreateRequest,
+        request: BatchDeleteRequest,
         subscription_service: SqlAlchemySubscriptionService,
     ) -> BatchJob:
         """
-        Create a batch subscription job
+        Create a batch subscription deletion job
         
         Execution flow:
         1. Check idempotency key
@@ -148,7 +146,7 @@ class BatchSubscriptionService:
     
     def _process_batch(self, job: BatchJob):
         """
-        Core logic for background batch subscription creation processing
+        Core logic for background batch subscription deletion processing
         
         Detailed execution flow:
         
@@ -157,8 +155,7 @@ class BatchSubscriptionService:
         - Update updated_at timestamp
         
         Phase 2: Process subscriptions one by one
-        - Iterate through each subscription in request
-        - Call subscription_service.create_subscription()
+        - Iterate through each subscription_id, call delete_subscription()
         - Record success/failure results
         - Update progress and counts
         
@@ -173,21 +170,18 @@ class BatchSubscriptionService:
             job.updated_at = datetime.utcnow()
             
             # ========== Phase 2: Process subscriptions one by one ==========
-            for index, subscription_request in enumerate(job.request.subscriptions):
+            for index, subscription_id in enumerate(job.request.subscription_ids):
                 try:
-                    # Create single subscription
-                    created_subscription = job.subscription_service.create_subscription(
-                        subscription_request
-                    )
+                    # Delete single subscription
+                    success = job.subscription_service.delete_subscription(subscription_id)
                     
-                    # Verify the subscription was actually created by checking if it has an ID
-                    if not created_subscription or not hasattr(created_subscription, 'id') or created_subscription.id is None:
-                        raise ValueError(f"Subscription creation returned invalid result: {created_subscription}")
+                    if not success:
+                        raise ValueError(f"Subscription {subscription_id} not found or could not be deleted")
                     
                     # Record success
-                    job.results.append(BatchSubscriptionItem(
+                    job.results.append(BatchDeleteItem(
                         index=index,
-                        subscription=created_subscription,
+                        subscription_id=subscription_id,
                         success=True,
                     ))
                     job.success_count += 1
@@ -195,9 +189,9 @@ class BatchSubscriptionService:
                 except Exception as e:
                     # Record failure with detailed error information
                     error_msg = f"{type(e).__name__}: {str(e)}"
-                    job.results.append(BatchSubscriptionItem(
+                    job.results.append(BatchDeleteItem(
                         index=index,
-                        subscription=None,
+                        subscription_id=subscription_id,
                         error=error_msg,
                         success=False,
                     ))
@@ -205,10 +199,10 @@ class BatchSubscriptionService:
                     # Log the error (if logger is available)
                     if hasattr(job.subscription_service, 'logger'):
                         job.subscription_service.logger.error(
-                            "batch_subscription_creation_failed",
+                            "batch_subscription_deletion_failed",
                             index=index,
-                            error=error_msg,
-                            user_id=getattr(subscription_request, 'user_id', 'unknown')
+                            subscription_id=subscription_id,
+                            error=error_msg
                         )
                 
                 # Update progress

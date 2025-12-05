@@ -280,13 +280,14 @@ class SqlAlchemySubscriptionService:
                 self.logger.error("database_error", error=str(e))
                 raise RuntimeError(f"Database error: {str(e)}") from e
 
-    def find_due_subscriptions(self, target_date: date) -> List[SubscriptionRead]:
-        """Find subscriptions due on a specific date."""
+    def find_due_subscriptions(self, start_date: date, end_date: date) -> List[SubscriptionRead]:
+        """Find subscriptions due between start_date and end_date (inclusive)."""
         with self.session_factory() as session:
             try:
-                # Find subscriptions where billing_date equals the target date
+                # Find subscriptions where billing_date is between start_date and end_date (inclusive)
                 query = session.query(SubscriptionORM).filter(
-                    SubscriptionORM.billing_date == target_date
+                    SubscriptionORM.billing_date >= start_date,
+                    SubscriptionORM.billing_date <= end_date
                 )
                 rows = query.all()
                 return [self._orm_to_read(row) for row in rows]

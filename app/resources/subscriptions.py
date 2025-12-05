@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Path, sta
 
 from app.models.subscription import SubscriptionCreate, SubscriptionUpdate, SubscriptionRead
 from app.models.common import ErrorResponse, PaginatedResponse
-from app.models.batch import BatchCreateRequest, BatchJobResponse, BatchStatusResponse
+from app.models.batch import BatchDeleteRequest, BatchJobResponse, BatchStatusResponse
 from app.services.subscription_service import SubscriptionServiceProtocol
 from app.services.batch_service import batch_subscription_service
 
@@ -80,14 +80,16 @@ async def get_due_subscriptions(
     """
     Get list of subscriptions due for billing.
     This is primarily used by internal jobs/composite service.
+    Returns subscriptions with billing_date between today and (today + days_ahead).
     """
     # We need to access the concrete implementation for this specific method
     # or update the protocol. For now, we assume the service has the method.
     if not hasattr(service, "find_due_subscriptions"):
         raise HTTPException(status_code=501, detail="Service does not support finding due subscriptions")
     
-    target_date = date.today() + timedelta(days=days_ahead)
-    return service.find_due_subscriptions(target_date)
+    today = date.today()
+    end_date = today + timedelta(days=days_ahead)
+    return service.find_due_subscriptions(today, end_date)
 
 
 @router.post(
@@ -332,87 +334,6 @@ async def delete_subscription(
     return None
 
 
-@router.post(
-    "/batch",
-    response_model=BatchJobResponse,
-    status_code=status.HTTP_202_ACCEPTED,
-    summary="Create subscriptions in batch (asynchronous)",
-    description="""
-    Create multiple subscriptions and immediately return 202 Accepted response.
-    
-    Workflow:
-    1. Receive batch subscription creation request
-    2. Create batch job record (status: pending)
-    3. Start background processing thread
-    4. Immediately return 202 Accepted with batch_id and status_url
-    
-    Clients should use the returned status_url to poll job status until status becomes completed or failed.
-    Batch operations may take longer, especially when processing large numbers of subscriptions.
-    """,
-    responses={
-        202: {
-            "description": "Batch job created and processing",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "batch_id": "550e8400-e29b-41d4-a716-446655440000",
-                        "status": "pending",
-                        "status_url": "/subscriptions/batch/550e8400-e29b-41d4-a716-446655440000/status",
-                        "total_count": 10,
-                        "message": "Batch subscription creation job created and queued for processing"
-                    }
-                }
-            }
-        },
-        400: {
-            "description": "Bad request - invalid parameters"
-        }
-    }
-)
-async def create_batch_subscriptions(
-    payload: BatchCreateRequest,
-    service: SubscriptionServiceProtocol = Depends(get_subscription_service),
-):
-    """
-    Batch subscription creation endpoint
-    
-    Execution path:
-    1. Validate request data (Pydantic auto-validation, including count limit 1-100)
-    2. Call batch_service.create_batch_job() to create batch job
-    3. Build response object with batch_id and status_url
-    4. Return 202 Accepted status code
-    
-    Note: This endpoint does not wait for all subscriptions to be created, but returns immediately.
-    The actual creation work happens asynchronously in a background thread, and clients need to poll for status.
-    """
-    try:
-        # Step 1-2: Create batch job (service internally starts background processing)
-        # Need to pass subscription_service to batch_service
-        from app.services.subscription_service import SqlAlchemySubscriptionService
-        if not isinstance(service, SqlAlchemySubscriptionService):
-            raise ValueError("Service type mismatch")
-        
-        job = batch_subscription_service.create_batch_job(payload, service)
-        
-        # Step 3: Build response
-        response = BatchJobResponse(
-            batch_id=job.batch_id,
-            status=job.status,
-            status_url=f"/subscriptions/batch/{job.batch_id}/status",
-            total_count=job.total_count,
-            message="Batch subscription creation job created and queued for processing"
-        )
-        
-        # Step 4: Return 202 Accepted
-        return response
-        
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-
-
 @router.get(
     "/batch/{batch_id}/status",
     response_model=BatchStatusResponse,
@@ -508,3 +429,91 @@ async def get_batch_status(
     
     # Step 4: Return status information
     return status_response
+
+
+@router.post(
+    "/batch/delete",
+    response_model=BatchJobResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Delete subscriptions in batch (asynchronous)",
+    description="""
+    Delete multiple subscriptions and immediately return 202 Accepted response.
+    
+    Workflow:
+    1. Receive batch subscription deletion request
+    2. Create batch job record (status: pending)
+    3. Start background processing thread
+    4. Immediately return 202 Accepted with batch_id and status_url
+    
+    Clients should use the returned status_url to poll job status until status becomes completed or failed.
+    Batch operations may take longer, especially when processing large numbers of subscriptions.
+    """,
+    responses={
+        202: {
+            "description": "Batch job created and processing",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "batch_id": "550e8400-e29b-41d4-a716-446655440000",
+                        "status": "pending",
+                        "status_url": "/subscriptions/batch/550e8400-e29b-41d4-a716-446655440000/status",
+                        "total_count": 10,
+                        "message": "Batch subscription deletion job created and queued for processing"
+                    }
+                }
+            }
+        },
+        400: {
+            "description": "Bad request - invalid parameters"
+        }
+    }
+)
+async def delete_batch_subscriptions(
+    payload: BatchDeleteRequest,
+    http_response: Response,
+    service: SubscriptionServiceProtocol = Depends(get_subscription_service),
+):
+    """
+    Batch subscription deletion endpoint
+    
+    Execution path:
+    1. Validate request data (Pydantic auto-validation, including count limit 1-100)
+    2. Call batch_service.create_batch_delete_job() to create batch job
+    3. Build response object with batch_id and status_url
+    4. Return 202 Accepted status code
+    
+    Note: This endpoint does not wait for all subscriptions to be deleted, but returns immediately.
+    The actual deletion work happens asynchronously in a background thread, and clients need to poll for status.
+    """
+    try:
+        # Step 1-2: Create batch job (service internally starts background processing)
+        # Need to pass subscription_service to batch_service
+        from app.services.subscription_service import SqlAlchemySubscriptionService
+        if not isinstance(service, SqlAlchemySubscriptionService):
+            raise ValueError("Service type mismatch")
+        
+        job = batch_subscription_service.create_batch_delete_job(payload, service)
+        
+        # Step 3: Build response
+        response_obj = BatchJobResponse(
+            batch_id=job.batch_id,
+            status=job.status,
+            status_url=f"/subscriptions/batch/{job.batch_id}/status",
+            total_count=job.total_count,
+            message="Batch subscription deletion job created and queued for processing"
+        )
+        
+        # Step 4: Return 202 Accepted
+        http_response.status_code = status.HTTP_202_ACCEPTED
+        return response_obj
+        
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create batch deletion job: {str(e)}"
+        )
