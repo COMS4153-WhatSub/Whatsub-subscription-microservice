@@ -42,43 +42,6 @@ class BatchDeleteRequest(BaseModel):
         }
     }
 
-    model_config = {
-        "json_schema_extra": {
-            "examples": [
-                {
-                    "subscriptions": [
-                        {
-                            "user_id": "7e98a8f7-0e22-4f4a-9f3e-5a2d7c6f9e11",
-                            "plan": "Netflix Premium",
-                            "billing_type": "monthly",
-                            "url": "https://www.netflix.com",
-                            "account": "user@example.com",
-                            "billing_date": "2024-01-15",
-                            "price": "15.99"
-                        },
-                        {
-                            "user_id": "8f09b9g8-1f33-5g5b-0h4f-6b3e8d7g0f22",
-                            "plan": "Spotify Premium",
-                            "billing_type": "monthly",
-                            "url": "https://www.spotify.com",
-                            "account": "user@example.com",
-                            "price": "9.99"
-                        },
-                        {
-                            "user_id": "9g10c0h9-2g44-6h6c-1i5g-7c4f9e8h1g33",
-                            "plan": "Amazon Prime",
-                            "billing_type": "annually",
-                            "url": "https://www.amazon.com/prime",
-                            "account": "user@example.com",
-                            "price": "139.00"
-                        }
-                    ],
-                    "idempotency_key": "batch-2024-01-15"
-                }
-            ]
-        }
-    }
-
 
 class BatchJobResponse(BaseModel):
     """202 Accepted response - batch job created"""
@@ -135,20 +98,14 @@ class BatchStatusResponse(BaseModel):
                     "results": [
                         {
                             "index": 0,
-                            "success": True,
-                            "subscription": {
-                                "id": 1,
-                                "user_id": "user_01",
-                                "plan": "Basic",
-                                "billing_date": "2024-01-15",
-                                "price": "10.00",
-                                "created_at": "2024-01-15T10:00:00Z"
-                            }
+                            "subscription_id": 1,
+                            "success": True
                         },
                         {
                             "index": 1,
+                            "subscription_id": 2,
                             "success": False,
-                            "error": "Invalid user_id"
+                            "error": "Subscription not found"
                         }
                     ]
                 }

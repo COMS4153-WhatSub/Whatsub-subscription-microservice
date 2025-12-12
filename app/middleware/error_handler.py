@@ -23,7 +23,20 @@ def register_error_handlers(app: FastAPI, logger):
 
     @app.exception_handler(Exception)
     async def unhandled_exception_handler(request: Request, exc: Exception):
-        logger.error("unhandled_exception", error=str(exc))
+        # Log detailed error information, especially for OpenAPI endpoints
+        error_info = {
+            "error": str(exc),
+            "error_type": type(exc).__name__,
+            "path": request.url.path,
+        }
+        # Include traceback for OpenAPI endpoints to help debug schema generation issues
+        if request.url.path in ["/openapi.json", "/docs", "/redoc"]:
+            import traceback
+            error_info["traceback"] = traceback.format_exc()
+            logger.error("openapi_generation_error", **error_info)
+        else:
+            logger.error("unhandled_exception", **error_info)
+        
         return JSONResponse(
             status_code=500,
             content={"error": {"message": "Internal server error"}},

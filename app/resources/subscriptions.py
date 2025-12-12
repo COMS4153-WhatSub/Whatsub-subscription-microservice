@@ -17,7 +17,13 @@ router = APIRouter()
 
 
 def get_subscription_service(request: Request) -> SubscriptionServiceProtocol:
-    return request.app.state.subscription_service
+    service = getattr(request.app.state, "subscription_service", None)
+    if service is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Subscription service is not available. Database connection may be unavailable."
+        )
+    return service
 
 
 @router.get(
@@ -388,8 +394,8 @@ async def delete_subscription(
                                 "failed_count": 2,
                                 "progress": 100.0,
                                 "results": [
-                                    {"index": 0, "success": True, "subscription": {...}},
-                                    {"index": 1, "success": False, "error": "..."}
+                                    {"index": 0, "subscription_id": 1, "success": True},
+                                    {"index": 1, "subscription_id": 2, "success": False, "error": "Subscription not found"}
                                 ]
                             }
                         }

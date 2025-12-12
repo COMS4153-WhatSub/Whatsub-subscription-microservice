@@ -118,8 +118,18 @@ except Exception as e:
         engine = get_engine()
         session_factory = get_session_factory()
         app.state.subscription_service = SqlAlchemySubscriptionService(logger, session_factory)
-    except:
-        pass  # If we can't even create the engine, let it fail on first use
+    except Exception as fallback_error:
+        logger.error("fallback_service_creation_failed", error=str(fallback_error))
+        # Create a minimal service instance to prevent AttributeError during OpenAPI generation
+        # This will fail on actual use, but allows the app to start
+        try:
+            engine = get_engine()
+            session_factory = get_session_factory()
+            app.state.subscription_service = SqlAlchemySubscriptionService(logger, session_factory)
+        except:
+            # Last resort: set a None value and handle in dependency
+            app.state.subscription_service = None
+            logger.critical("service_not_initialized", message="Subscription service could not be initialized")
 
 app.include_router(health_router, prefix="")
 app.include_router(subscriptions_router, prefix="/subscriptions", tags=["subscriptions"])
